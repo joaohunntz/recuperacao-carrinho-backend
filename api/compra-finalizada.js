@@ -11,11 +11,20 @@ module.exports = async (req, res) => {
     console.log('Recebendo requisição da Hotmart');
     console.log('Corpo da requisição:', req.body); // Log para verificar todos os dados recebidos
 
-    const { email, status } = req.body.data ? req.body.data.buyer : {};  // Acessando os dados corretamente
+    // Verificar se a estrutura do corpo está conforme esperado
+    const { buyer, purchase } = req.body.data || {};
+
+    if (!buyer || !purchase) {
+      console.error('Parâmetros obrigatórios ausentes: buyer ou purchase');
+      return res.status(400).send('Parâmetros obrigatórios ausentes');
+    }
+
+    const email = buyer.email;  // Captura o e-mail
+    const status = purchase.status;  // Captura o status da compra
 
     if (!email || !status) {
-      console.error('Parâmetros obrigatórios ausentes: email ou status');
-      return res.status(400).send('Parâmetros obrigatórios ausentes');
+      console.error('E-mail ou status ausentes');
+      return res.status(400).send('E-mail ou status ausentes');
     }
 
     console.log('E-mail:', email);
