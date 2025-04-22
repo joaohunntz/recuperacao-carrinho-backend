@@ -72,7 +72,7 @@ async function iniciarTimerDeRecuperacao(email) {
   // Variável para controlar se os e-mails devem ser enviados
   let enviarEmails = true;
 
-  // Iniciar o timer de 1 minuto
+  // Iniciar o timer de 1 minuto para o primeiro e-mail
   setTimeout(async () => {
     console.log(`Verificando se o status do e-mail foi alterado para "comprado"`);
     const { data: leadData } = await supabase
@@ -89,12 +89,13 @@ async function iniciarTimerDeRecuperacao(email) {
 
     // Se o status não foi alterado, enviar os e-mails de recuperação
     if (enviarEmails) {
-      console.log('Status ainda como "iniciado", enviando os e-mails de recuperação...');
+      console.log('Status ainda como "iniciado", enviando o primeiro e-mail de recuperação...');
       await enviarEmailsDeRecuperacao(email);
     } else {
       console.log('Status já foi alterado para "comprado", e-mails de recuperação não serão enviados.');
     }
-  }, 60 * 1000); // 1 minuto para teste
+  }, 60 * 1000); // 1 minuto para teste (primeiro e-mail)
+
 }
 
 // Função para enviar os e-mails de recuperação
@@ -102,7 +103,7 @@ async function enviarEmailsDeRecuperacao(email) {
   try {
     console.log(`Enviando e-mails de recuperação para: ${email}`);
 
-    // Enviar o primeiro e-mail de recuperação
+    // Enviar o primeiro e-mail de recuperação (após 1 minuto)
     await axios.post('https://api.resend.com/send', {
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
@@ -115,7 +116,7 @@ async function enviarEmailsDeRecuperacao(email) {
       }
     });
 
-    // Enviar outros e-mails com intervalo de tempo (1 dia, 3 dias)
+    // Enviar o segundo e-mail com intervalo de 1 dia
     setTimeout(async () => {
       await axios.post('https://api.resend.com/send', {
         headers: {
@@ -130,6 +131,7 @@ async function enviarEmailsDeRecuperacao(email) {
       });
     }, 24 * 60 * 60 * 1000); // Enviar 1 dia depois
 
+    // Enviar o terceiro e-mail com intervalo de 3 dias
     setTimeout(async () => {
       await axios.post('https://api.resend.com/send', {
         headers: {
@@ -143,6 +145,7 @@ async function enviarEmailsDeRecuperacao(email) {
         }
       });
     }, 3 * 24 * 60 * 60 * 1000); // Enviar 3 dias depois
+
   } catch (error) {
     console.error('Erro ao enviar e-mail de recuperação:', error);
   }
