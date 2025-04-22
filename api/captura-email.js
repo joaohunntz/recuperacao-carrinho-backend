@@ -23,23 +23,6 @@ module.exports = async (req, res) => {
     try {
       console.log('Verificando e-mail no Supabase:', email);
 
-      // Verificar se o e-mail já existe no banco (evitar duplicação)
-      const { data: existingLead, error: findError } = await supabase
-        .from('leads')
-        .select('email')
-        .eq('email', email)
-        .single();  // Usar .single() para garantir que retorne apenas um único resultado
-
-      if (findError && findError.code !== 'PGRST116') {
-        console.error('Erro ao verificar e-mail no Supabase:', findError);
-        return res.status(500).send('Erro ao verificar e-mail');
-      }
-
-      if (existingLead) {
-        console.log('E-mail já existe:', email);
-        return res.status(400).send('E-mail já foi capturado');
-      }
-
       // Salvar o e-mail no Supabase com status 'iniciado'
       console.log('Salvando e-mail no Supabase:', email);
       const { data, error } = await supabase
@@ -52,7 +35,9 @@ module.exports = async (req, res) => {
       }
 
       console.log('E-mail salvo com sucesso:', email);
-      iniciarTimerDeRecuperacao(email);
+
+      // Enviar o primeiro e-mail de recuperação imediatamente após o registro
+      await enviarEmailsDeRecuperacao(email);
 
       return res.status(200).send('E-mail salvo com sucesso!');
     } catch (error) {
@@ -65,48 +50,12 @@ module.exports = async (req, res) => {
   }
 };
 
-// Função para iniciar o processo de envio de e-mails de recuperação
-async function iniciarTimerDeRecuperacao(email) {
-  console.log(`Iniciando o timer de 1 minuto para o e-mail: ${email}`);
-
-  // Variável para controlar se os e-mails devem ser enviados
-  let enviarEmails = true;
-
-  // Iniciar o timer de 1 minuto para o primeiro e-mail
-  setTimeout(async () => {
-    console.log(`Verificando status após 1 minuto para o e-mail: ${email}`);
-
-    // Verificar o status do lead após o tempo
-    const { data: leadData } = await supabase
-      .from('leads')
-      .select('status')
-      .eq('email', email)
-      .single();  // Verifica o status do lead
-
-    console.log('Status do lead:', leadData.status);
-
-    // Se o status foi alterado para "comprado", cancela o envio dos e-mails
-    if (leadData && leadData.status === 'comprado') {
-      console.log('Status alterado para "comprado", cancelando envio de e-mails');
-      enviarEmails = false;  // Não enviar os e-mails se a compra foi confirmada
-    }
-
-    // Se o status não foi alterado, enviar os e-mails de recuperação
-    if (enviarEmails) {
-      console.log('Status ainda como "iniciado", enviando o primeiro e-mail de recuperação...');
-      await enviarEmailsDeRecuperacao(email);
-    } else {
-      console.log('Status já foi alterado para "comprado", e-mails de recuperação não serão enviados.');
-    }
-  }, 60 * 1000); // 1 minuto para teste (primeiro e-mail)
-}
-
 // Função para enviar os e-mails de recuperação
 async function enviarEmailsDeRecuperacao(email) {
   try {
     console.log(`Enviando e-mails de recuperação para: ${email}`);
 
-    // Enviar o primeiro e-mail de recuperação (após 1 minuto)
+    // Enviar o primeiro e-mail de recuperação
     await axios.post('https://api.resend.com/send', {
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
