@@ -12,8 +12,8 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     console.log('Corpo da requisição:', req.body);
 
-    // Extraindo o e-mail da requisição (presumido que é 'email')
-    const email = req.body.email; // Pegando o e-mail diretamente do campo 'email'
+    // Extraindo o e-mail da requisição (presumido que é 'email' ou 'Jg3rc4')
+    const email = req.body['email'];  // Pegando o e-mail corretamente
 
     if (!email) {
       console.error('Erro: E-mail não fornecido');
@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
         .eq('email', email)
         .single();  // Usar .single() para garantir que retorne apenas um único resultado
 
-      if (findError) {
+      if (findError && findError.code !== 'PGRST116') {
         console.error('Erro ao verificar e-mail no Supabase:', findError);
         return res.status(500).send('Erro ao verificar e-mail');
       }
