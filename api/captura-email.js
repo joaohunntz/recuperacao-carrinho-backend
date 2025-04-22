@@ -74,12 +74,16 @@ async function iniciarTimerDeRecuperacao(email) {
 
   // Iniciar o timer de 1 minuto para o primeiro e-mail
   setTimeout(async () => {
-    console.log(`Verificando se o status do e-mail foi alterado para "comprado"`);
+    console.log(`Verificando status após 1 minuto para o e-mail: ${email}`);
+
+    // Verificar o status do lead após o tempo
     const { data: leadData } = await supabase
       .from('leads')
       .select('status')
       .eq('email', email)
       .single();  // Verifica o status do lead
+
+    console.log('Status do lead:', leadData.status);
 
     // Se o status foi alterado para "comprado", cancela o envio dos e-mails
     if (leadData && leadData.status === 'comprado') {
@@ -95,7 +99,6 @@ async function iniciarTimerDeRecuperacao(email) {
       console.log('Status já foi alterado para "comprado", e-mails de recuperação não serão enviados.');
     }
   }, 60 * 1000); // 1 minuto para teste (primeiro e-mail)
-
 }
 
 // Função para enviar os e-mails de recuperação
