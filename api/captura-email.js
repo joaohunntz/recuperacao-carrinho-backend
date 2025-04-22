@@ -36,8 +36,10 @@ module.exports = async (req, res) => {
 
       console.log('E-mail salvo com sucesso:', email);
 
-      // Enviar o primeiro e-mail de recuperação imediatamente após o registro
-      await enviarEmailsDeRecuperacao(email);
+      // Espera 500ms para garantir que o e-mail foi registrado antes de verificar
+      setTimeout(() => {
+        iniciarTimerDeRecuperacao(email);  // Chama a função para iniciar o envio dos e-mails
+      }, 500); // Atraso de 500ms antes de chamar a função
 
       return res.status(200).send('E-mail salvo com sucesso!');
     } catch (error) {
@@ -50,12 +52,45 @@ module.exports = async (req, res) => {
   }
 };
 
+// Função para iniciar o processo de envio de e-mails de recuperação
+async function iniciarTimerDeRecuperacao(email) {
+  console.log(`Iniciando o timer de 1 minuto para o e-mail: ${email}`);
+
+  // Variável para controlar se os e-mails devem ser enviados
+  let enviarEmails = true;
+
+  // Iniciar o timer de 1 minuto
+  setTimeout(async () => {
+    console.log(`Verificando se o status do e-mail foi alterado para "comprado"`);
+    const { data: leadData } = await supabase
+      .from('leads')
+      .select('status')
+      .eq('email', email)
+      .single();  // Verifica o status do lead
+
+    // Se o status foi alterado para "comprado", cancela o envio dos e-mails
+    if (leadData && leadData.status === 'comprado') {
+      console.log('Status alterado para "comprado", cancelando envio de e-mails');
+      enviarEmails = false;  // Não enviar os e-mails se a compra foi confirmada
+    }
+
+    // Se o status não foi alterado, enviar os e-mails de recuperação
+    if (enviarEmails) {
+      console.log('Status ainda como "iniciado", enviando os e-mails de recuperação...');
+      await enviarEmailsDeRecuperacao(email);
+    } else {
+      console.log('Status já foi alterado para "comprado", e-mails de recuperação não serão enviados.');
+    }
+  }, 60 * 1000); // 1 minuto para teste (primeiro e-mail)
+
+}
+
 // Função para enviar os e-mails de recuperação
 async function enviarEmailsDeRecuperacao(email) {
   try {
     console.log(`Enviando e-mails de recuperação para: ${email}`);
 
-    // Enviar o primeiro e-mail de recuperação
+    // Enviar o primeiro e-mail de recuperação (após 1 minuto)
     await axios.post('https://api.resend.com/send', {
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
