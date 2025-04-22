@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     console.log('Corpo da requisição:', req.body);
 
-    // Extraindo o e-mail da requisição (presumido que é 'email' ou 'Jg3rc4')
+    // Extraindo o e-mail da requisição
     const email = req.body['email'];  // Pegando o e-mail corretamente
 
     if (!email) {
@@ -22,6 +22,7 @@ module.exports = async (req, res) => {
 
     try {
       console.log('Verificando e-mail no Supabase:', email);
+
       // Verificar se o e-mail já existe no banco (evitar duplicação)
       const { data: existingLead, error: findError } = await supabase
         .from('leads')
@@ -39,7 +40,7 @@ module.exports = async (req, res) => {
         return res.status(400).send('E-mail já foi capturado');
       }
 
-      // Salvar o e-mail no Supabase
+      // Salvar o e-mail no Supabase com status 'iniciado'
       console.log('Salvando e-mail no Supabase:', email);
       const { data, error } = await supabase
         .from('leads')
@@ -51,7 +52,7 @@ module.exports = async (req, res) => {
       }
 
       console.log('E-mail salvo com sucesso:', email);
-      iniciarVerificacaoCompra(email);
+      iniciarTimerDeRecuperacao(email);
 
       return res.status(200).send('E-mail salvo com sucesso!');
     } catch (error) {
@@ -64,38 +65,36 @@ module.exports = async (req, res) => {
   }
 };
 
-// Função para iniciar o processo de verificação de compra
-async function iniciarVerificacaoCompra(email) {
-  console.log(`Iniciando verificação de compra para o e-mail: ${email}`);
+// Função para iniciar o processo de envio de e-mails de recuperação
+async function iniciarTimerDeRecuperacao(email) {
+  console.log(`Iniciando o timer de 1 minuto para o e-mail: ${email}`);
 
+  // Variável para controlar se os e-mails devem ser enviados
+  let enviarEmails = true;
+
+  // Iniciar o timer de 1 minuto
   setTimeout(async () => {
-    console.log(`Verificando compra para o e-mail: ${email}`);
-    const compraFeita = await verificarCompraHotmart(email);
+    console.log(`Verificando se o status do e-mail foi alterado para "comprado"`);
+    const { data: leadData } = await supabase
+      .from('leads')
+      .select('status')
+      .eq('email', email)
+      .single();  // Verifica o status do lead
 
-    if (compraFeita) {
-      console.log('Compra confirmada, atualizando status para "comprado"');
-      await supabase.from('leads').update({ status: 'comprado' }).eq('email', email);
-    } else {
-      console.log('Compra não realizada, atualizando status para "em recuperação"');
-      await supabase.from('leads').update({ status: 'em recuperação' }).eq('email', email);
-      await enviarEmailsDeRecuperacao(email);
+    // Se o status foi alterado para "comprado", cancela o envio dos e-mails
+    if (leadData && leadData.status === 'comprado') {
+      console.log('Status alterado para "comprado", cancelando envio de e-mails');
+      enviarEmails = false;  // Não enviar os e-mails se a compra foi confirmada
     }
-  }, 30 * 1000); // 30 segundos para teste
-}
 
-// Função para verificar se a compra foi feita via Hotmart
-async function verificarCompraHotmart(email) {
-  try {
-    console.log(`Verificando compra para o e-mail: ${email} na Hotmart`);
-    const response = await axios.post('https://api.hotmart.com/v2/purchase-status', {
-      email: email,
-    });
-
-    return response.data.status === 'approved';  // Retorna true se a compra for aprovada
-  } catch (error) {
-    console.error('Erro ao verificar compra na Hotmart:', error);
-    return false;
-  }
+    // Se o status não foi alterado, enviar os e-mails de recuperação
+    if (enviarEmails) {
+      console.log('Status ainda como "iniciado", enviando os e-mails de recuperação...');
+      await enviarEmailsDeRecuperacao(email);
+    } else {
+      console.log('Status já foi alterado para "comprado", e-mails de recuperação não serão enviados.');
+    }
+  }, 60 * 1000); // 1 minuto para teste
 }
 
 // Função para enviar os e-mails de recuperação
@@ -103,6 +102,7 @@ async function enviarEmailsDeRecuperacao(email) {
   try {
     console.log(`Enviando e-mails de recuperação para: ${email}`);
 
+    // Enviar o primeiro e-mail de recuperação
     await axios.post('https://api.resend.com/send', {
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
@@ -115,6 +115,7 @@ async function enviarEmailsDeRecuperacao(email) {
       }
     });
 
+    // Enviar outros e-mails com intervalo de tempo (1 dia, 3 dias)
     setTimeout(async () => {
       await axios.post('https://api.resend.com/send', {
         headers: {
