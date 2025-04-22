@@ -2,7 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const axios = require('axios');
 
-dotenv.config();
+dotenv.config();  // Carregar variáveis de ambiente do arquivo .env
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
@@ -12,8 +12,8 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     console.log('Corpo da requisição:', req.body);
 
-    // Extrair o e-mail da requisição (presumido que o e-mail vem como 'email')
-    const email = req.body.email;  // Aqui pegamos o e-mail corretamente
+    // Extraindo o e-mail da requisição (presumido que é 'email')
+    const email = req.body.email; // Pegando o e-mail diretamente do campo 'email'
 
     if (!email) {
       console.error('Erro: E-mail não fornecido');
@@ -27,14 +27,13 @@ module.exports = async (req, res) => {
         .from('leads')
         .select('email')
         .eq('email', email)
-        .single();  // Garantindo que retorne apenas um único resultado
+        .single();  // Usar .single() para garantir que retorne apenas um único resultado
 
       if (findError) {
         console.error('Erro ao verificar e-mail no Supabase:', findError);
         return res.status(500).send('Erro ao verificar e-mail');
       }
 
-      // Se o e-mail já existe, não salvar novamente
       if (existingLead) {
         console.log('E-mail já existe:', email);
         return res.status(400).send('E-mail já foi capturado');
