@@ -7,8 +7,16 @@ dotenv.config();  // Carregar variáveis de ambiente do arquivo .env
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 module.exports = async (req, res) => {
+  console.log("Recebendo requisição da InLead");
+
   if (req.method === 'POST') {
+    console.log('Corpo da requisição:', req.body); // Logar todos os dados recebidos
+
     const { email } = req.body; // Captura o e-mail enviado pelo InLead (via Webhook)
+    if (!email) {
+      console.error('Erro: E-mail não fornecido');
+      return res.status(400).send('E-mail não fornecido');
+    }
 
     try {
       // Verificar se o e-mail já existe no banco (evitar duplicação)
@@ -19,22 +27,28 @@ module.exports = async (req, res) => {
         .single();
 
       if (findError) {
+        console.error('Erro ao verificar e-mail no Supabase:', findError);
         return res.status(500).send('Erro ao verificar e-mail');
       }
 
       // Se o e-mail já existe, não salvar novamente
       if (existingLead) {
+        console.log('E-mail já existe:', email);
         return res.status(400).send('E-mail já foi capturado');
       }
 
+      console.log('Salvando e-mail no Supabase:', email);
       // Salvar o e-mail no Supabase
       const { data, error } = await supabase
         .from('leads')
         .insert([{ email, status: 'iniciado', data_captura: new Date() }]);
 
       if (error) {
+        console.error('Erro ao salvar e-mail no Supabase:', error);
         return res.status(500).send('Erro ao salvar e-mail no banco');
       }
+
+      console.log('E-mail salvo com sucesso:', email);
 
       // Iniciar o timer de 20 minutos para verificar se a compra foi feita
       iniciarVerificacaoCompra(email);
@@ -45,19 +59,25 @@ module.exports = async (req, res) => {
       return res.status(500).send('Erro inesperado ao salvar o e-mail');
     }
   } else {
+    console.error('Método não permitido:', req.method);
     return res.status(405).send('Método não permitido');
   }
 };
 
 // Função para iniciar o processo de verificação de compra
 async function iniciarVerificacaoCompra(email) {
+  console.log(`Iniciando verificação de compra para o e-mail: ${email}`);
+
   // Timer de 20 minutos (1200 segundos)
   setTimeout(async () => {
+    console.log(`Verificando compra para o e-mail: ${email}`);
     const compraFeita = await verificarCompraHotmart(email);
 
     if (compraFeita) {
+      console.log('Compra confirmada, atualizando status para "comprado"');
       await supabase.from('leads').update({ status: 'comprado' }).eq('email', email);
     } else {
+      console.log('Compra não realizada, atualizando status para "em recuperação"');
       await supabase.from('leads').update({ status: 'em recuperação' }).eq('email', email);
       await enviarEmailsDeRecuperacao(email);
     }
@@ -67,13 +87,14 @@ async function iniciarVerificacaoCompra(email) {
 // Função para verificar se a compra foi feita via Hotmart
 async function verificarCompraHotmart(email) {
   try {
+    console.log(`Verificando compra para o e-mail: ${email} na Hotmart`);
     const response = await axios.post('https://api.hotmart.com/v2/purchase-status', {
       email: email,
     });
 
     return response.data.status === 'approved';  // Retorna true se a compra for aprovada
   } catch (error) {
-    console.error('Erro ao verificar compra:', error);
+    console.error('Erro ao verificar compra na Hotmart:', error);
     return false;
   }
 }
@@ -81,7 +102,8 @@ async function verificarCompraHotmart(email) {
 // Função para enviar os e-mails de recuperação
 async function enviarEmailsDeRecuperacao(email) {
   try {
-    // Enviar o primeiro e-mail de recuperação
+    console.log(`Enviando e-mails de recuperação para: ${email}`);
+
     await axios.post('https://api.resend.com/send', {
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
@@ -122,6 +144,6 @@ async function enviarEmailsDeRecuperacao(email) {
       });
     }, 3 * 24 * 60 * 60 * 1000); // Enviar 3 dias depois
   } catch (error) {
-    console.error('Erro ao enviar e-mail:', error);
+    console.error('Erro ao enviar e-mail de recuperação:', error);
   }
 }
