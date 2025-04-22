@@ -1,8 +1,8 @@
-const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const axios = require('axios');
 
-dotenv.config();  // Carregar variáveis de ambiente do arquivo .env
+dotenv.config();
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
@@ -10,21 +10,24 @@ module.exports = async (req, res) => {
   console.log("Recebendo requisição da InLead");
 
   if (req.method === 'POST') {
-    console.log('Corpo da requisição:', req.body); // Logar todos os dados recebidos
+    console.log('Corpo da requisição:', req.body);
 
-    const { email } = req.body; // Captura o e-mail enviado pelo InLead (via Webhook)
+    // Extrair o e-mail da requisição (presumido que o e-mail vem como 'email')
+    const email = req.body.email;  // Aqui pegamos o e-mail corretamente
+
     if (!email) {
       console.error('Erro: E-mail não fornecido');
       return res.status(400).send('E-mail não fornecido');
     }
 
     try {
+      console.log('Verificando e-mail no Supabase:', email);
       // Verificar se o e-mail já existe no banco (evitar duplicação)
       const { data: existingLead, error: findError } = await supabase
         .from('leads')
         .select('email')
         .eq('email', email)
-        .single();
+        .single();  // Garantindo que retorne apenas um único resultado
 
       if (findError) {
         console.error('Erro ao verificar e-mail no Supabase:', findError);
@@ -37,8 +40,8 @@ module.exports = async (req, res) => {
         return res.status(400).send('E-mail já foi capturado');
       }
 
-      console.log('Salvando e-mail no Supabase:', email);
       // Salvar o e-mail no Supabase
+      console.log('Salvando e-mail no Supabase:', email);
       const { data, error } = await supabase
         .from('leads')
         .insert([{ email, status: 'iniciado', data_captura: new Date() }]);
@@ -49,8 +52,6 @@ module.exports = async (req, res) => {
       }
 
       console.log('E-mail salvo com sucesso:', email);
-
-      // Iniciar o timer de 20 minutos para verificar se a compra foi feita
       iniciarVerificacaoCompra(email);
 
       return res.status(200).send('E-mail salvo com sucesso!');
@@ -68,7 +69,6 @@ module.exports = async (req, res) => {
 async function iniciarVerificacaoCompra(email) {
   console.log(`Iniciando verificação de compra para o e-mail: ${email}`);
 
-  // Timer de 20 minutos (1200 segundos)
   setTimeout(async () => {
     console.log(`Verificando compra para o e-mail: ${email}`);
     const compraFeita = await verificarCompraHotmart(email);
@@ -106,7 +106,7 @@ async function enviarEmailsDeRecuperacao(email) {
 
     await axios.post('https://api.resend.com/send', {
       headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
       },
       data: {
         to: email,
