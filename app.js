@@ -50,7 +50,8 @@ app.post('/captura-email', async (req, res) => {
     // Enviar uma resposta de sucesso
     return res.status(200).send('E-mail salvo com sucesso!');
   } catch (error) {
-    return res.status(500).send('Erro inesperado');
+    console.error('Erro inesperado:', error);
+    return res.status(500).send('Erro inesperado ao salvar o e-mail');
   }
 });
 
@@ -65,7 +66,7 @@ async function iniciarVerificacaoCompra(email) {
       await supabase.from('leads').update({ status: 'comprado' }).eq('email', email);
     } else {
       await supabase.from('leads').update({ status: 'em recuperação' }).eq('email', email);
-      enviarEmailsDeRecuperacao(email);
+      await enviarEmailsDeRecuperacao(email);
     }
   }, 20 * 60 * 1000); // 20 minutos
 }
@@ -100,36 +101,62 @@ async function enviarEmailsDeRecuperacao(email) {
     });
 
     // Enviar outros e-mails com intervalo de tempo (1 dia, 3 dias)
-    setTimeout(async () => {
-      await axios.post('https://api.resend.com/send', {
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
-        },
-        data: {
-          to: email,
-          subject: 'Ainda está de olho no produto?',
-          body: 'Seu carrinho está esperando! Aproveite antes que acabe.',
-        }
-      });
-    }, 24 * 60 * 60 * 1000); // Enviar 1 dia depois
+    await Promise.all([
+      new Promise((resolve) => {
+        setTimeout(async () => {
+          await axios.post('https://api.resend.com/send', {
+            headers: {
+              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
+            },
+            data: {
+              to: email,
+              subject: 'Ainda está de olho no produto?',
+              body: 'Seu carrinho está esperando! Aproveite antes que acabe.',
+            }
+          });
+          resolve();
+        }, 24 * 60 * 60 * 1000); // Enviar 1 dia depois
+      }),
 
-    setTimeout(async () => {
-      await axios.post('https://api.resend.com/send', {
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
-        },
-        data: {
-          to: email,
-          subject: 'Última chance para garantir seu produto!',
-          body: 'Não perca! Finalize sua compra agora e receba um desconto exclusivo.',
-        }
-      });
-    }, 3 * 24 * 60 * 60 * 1000); // Enviar 3 dias depois
-
+      new Promise((resolve) => {
+        setTimeout(async () => {
+          await axios.post('https://api.resend.com/send', {
+            headers: {
+              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,  // Usando a chave de API do Resend
+            },
+            data: {
+              to: email,
+              subject: 'Última chance para garantir seu produto!',
+              body: 'Não perca! Finalize sua compra agora e receba um desconto exclusivo.',
+            }
+          });
+          resolve();
+        }, 3 * 24 * 60 * 60 * 1000); // Enviar 3 dias depois
+      })
+    ]);
   } catch (error) {
     console.error('Erro ao enviar e-mail:', error);
   }
 }
+
+// Endpoint para receber a comunicação de compra da Hotmart
+app.post('/compra-finalizada', async (req, res) => {
+  const { email, status } = req.body;  // O corpo da requisição vai conter os dados da compra
+
+  // Verifique se a compra foi realizada com sucesso
+  if (status === 'APPROVED') {
+    try {
+      // Atualize o status do lead para "comprado" no Supabase
+      await supabase.from('leads').update({ status: 'comprado' }).eq('email', email);
+      return res.status(200).send('Compra confirmada e status atualizado!');
+    } catch (error) {
+      console.error('Erro ao atualizar status no Supabase:', error);
+      return res.status(500).send('Erro ao atualizar o status da compra');
+    }
+  } else {
+    return res.status(400).send('Compra não aprovada');
+  }
+});
 
 // Iniciar o servidor
 app.listen(port, () => {
