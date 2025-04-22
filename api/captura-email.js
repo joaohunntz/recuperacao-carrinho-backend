@@ -80,7 +80,7 @@ async function iniciarVerificacaoCompra(email) {
       await supabase.from('leads').update({ status: 'em recuperação' }).eq('email', email);
       await enviarEmailsDeRecuperacao(email);
     }
-  }, 20 * 60 * 1000); // 20 minutos
+  }, 30 * 1000); // 30 segundos para teste
 }
 
 // Função para verificar se a compra foi feita via Hotmart
